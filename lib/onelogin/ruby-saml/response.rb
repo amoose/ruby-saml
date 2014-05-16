@@ -12,7 +12,7 @@ module OneLogin
       DSIG      = "http://www.w3.org/2000/09/xmldsig#"
 
       # Encryption related
-      PLAINTEXT_ASSERTION_PATH = "/samlp:Response/saml:Assertion"
+      PLAINTEXT_ASSERTION_PATH = "/samlp:Response/Assertion"
       ENCRYPTED_RESPONSE_DATA_PATH = "/samlp:Response/EncryptedAssertion/xenc:EncryptedData/"
       ENCRYPTED_AES_KEY_PATH = "./KeyInfo/e:EncryptedKey/e:CipherData/e:CipherValue"
       ENCRYPTED_ASSERTION_PATH = "./xenc:CipherData/xenc:CipherValue"
@@ -131,11 +131,11 @@ module OneLogin
 
       def assertion_document
         @assertion_document ||= begin
-          if document.elements[PLAINTEXT_ASSERTION_PATH]
-            document
-          else
+          if document.elements[ENCRYPTED_RESPONSE_DATA_PATH]
             document.elements['/samlp:Response/'].add(decrypt_assertion_document)
             XMLSecurity::SignedDocument.new(document.to_s)
+          else
+            document
           end
         end
       end
