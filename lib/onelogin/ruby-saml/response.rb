@@ -230,7 +230,7 @@ module OneLogin
       end
 
       def retrieve_symmetric_key(cipher_data)
-        cert_rsa = OpenSSL::PKey::RSA.new(@settings.private_key, @settings.private_key_password)
+        cert_rsa = OpenSSL::PKey::RSA.new(settings.private_key, settings.private_key_password)
         encrypted_aes_key_element = cipher_data.elements[ENCRYPTED_AES_KEY_PATH]
         encrypted_aes_key = Base64.decode64(encrypted_aes_key_element.text)
         cert_rsa.private_decrypt(encrypted_aes_key, RSA_PKCS1_OAEP_PADDING)
