@@ -139,7 +139,7 @@ module OneLogin
         @assertion_document ||= begin
           if document.elements[ENCRYPTED_RESPONSE_PATH]
             if sig_element = document.elements['/samlp:Response/ds:Signature']
-              sig_element.remove
+              sig_element.remove #Skipping signature verification - Assertion is already signed andit will be verified.
             end
             document.elements['/samlp:Response/'].add(decrypt_assertion_document)
             document.elements[ENCRYPTED_RESPONSE_PATH].remove
