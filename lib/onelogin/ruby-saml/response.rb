@@ -13,10 +13,16 @@ module OneLogin
 
       # Encryption related
       PLAINTEXT_ASSERTION_PATH = "/samlp:Response/Assertion"
-      ENCRYPTED_RESPONSE_DATA_PATH = "/samlp:Response/EncryptedAssertion/xenc:EncryptedData/"
-      ENCRYPTED_AES_KEY_PATH = "./KeyInfo/e:EncryptedKey/e:CipherData/e:CipherValue"
+      ENCRYPTED_RESPONSE_PATH = "(/samlp:Response/EncryptedAssertion/)|(/samlp:Response/saml:EncryptedAssertion/)"
+      ENCRYPTED_RESPONSE_DATA_PATH = "./xenc:EncryptedData"
+      ENCRYPTION_METHOD_PATH = "./xenc:EncryptionMethod"
+      ENCRYPTED_AES_KEY_PATH = "(./KeyInfo/e:EncryptedKey/e:CipherData/e:CipherValue)|(./ds:KeyInfo/xenc:EncryptedKey/xenc:CipherData/xenc:CipherValue)"
       ENCRYPTED_ASSERTION_PATH = "./xenc:CipherData/xenc:CipherValue"
       RSA_PKCS1_OAEP_PADDING = 4
+      ENCRYTPION_ALGORITHMS = {
+          'http://www.w3.org/2001/04/xmlenc#aes128-cbc' => 'AES-128-CBC',
+          'http://www.w3.org/2001/04/xmlenc#aes256-cbc' => 'AES-256-CBC'
+      }
 
       # TODO: This should probably be ctor initialized too... WDYT?
       attr_accessor :settings
@@ -131,8 +137,12 @@ module OneLogin
 
       def assertion_document
         @assertion_document ||= begin
-          if document.elements[ENCRYPTED_RESPONSE_DATA_PATH]
+          if document.elements[ENCRYPTED_RESPONSE_PATH]
+            if sig_element = document.elements['/samlp:Response/ds:Signature']
+              sig_element.remove
+            end
             document.elements['/samlp:Response/'].add(decrypt_assertion_document)
+            document.elements[ENCRYPTED_RESPONSE_PATH].remove
             XMLSecurity::SignedDocument.new(document.to_s)
           else
             document
@@ -222,10 +232,12 @@ module OneLogin
 
       def decrypt_assertion_document
         @encrypted = true
-        cipher_data = document.elements[ENCRYPTED_RESPONSE_DATA_PATH]
+        encrypted_assertion = document.elements[ENCRYPTED_RESPONSE_PATH]
+        cipher_data = encrypted_assertion.elements[ENCRYPTED_RESPONSE_DATA_PATH]
         aes_key = retrieve_symmetric_key(cipher_data)
         encrypted_assertion = Base64.decode64(cipher_data.elements[ENCRYPTED_ASSERTION_PATH].text)
-        assertion_plaintext = retrieve_plaintext(encrypted_assertion, aes_key)
+        alogrithm = ENCRYTPION_ALGORITHMS[cipher_data.elements[ENCRYPTION_METHOD_PATH].attributes['Algorithm']]
+        assertion_plaintext = retrieve_plaintext(encrypted_assertion, aes_key, alogrithm)
         REXML::Document.new(assertion_plaintext)
       end
 
@@ -236,8 +248,8 @@ module OneLogin
         cert_rsa.private_decrypt(encrypted_aes_key, RSA_PKCS1_OAEP_PADDING)
       end
 
-      def retrieve_plaintext(cipher_text, key)
-        aes_cipher = OpenSSL::Cipher.new("AES-256-CBC").decrypt
+      def retrieve_plaintext(cipher_text, key, alogrithm)
+        aes_cipher = OpenSSL::Cipher.new(alogrithm).decrypt
         iv = cipher_text[0..15]
         data = cipher_text[16..-1]
         aes_cipher.padding, aes_cipher.key, aes_cipher.iv = 0, key, iv
@@ -245,7 +257,7 @@ module OneLogin
         assertion_plaintext << aes_cipher.final
         # We get some problematic noise in the plaintext after decrypting.
         # This quick regexp parse will grab only the assertion and discard the noise.
-        assertion_plaintext.match(/(.*<\/Assertion>)/m)[0]
+        assertion_plaintext.match(/(.*<\/(saml:|)Assertion>)/m)[0]
       end
     end
   end
