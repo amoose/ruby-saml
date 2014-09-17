@@ -53,7 +53,7 @@ module XMLSecurity
       cert         = OpenSSL::X509::Certificate.new(cert_text)
 
       # check cert matches registered idp cert
-      fingerprint = Digest::SHA1.hexdigest(cert.to_der)
+      fingerprint = Digest::SHA256.hexdigest(cert.to_der)
 
       if fingerprint != idp_cert_fingerprint.gsub(/[^a-zA-Z0-9]/,"").downcase
         return soft ? false : (raise OneLogin::RubySaml::ValidationError.new("Fingerprint mismatch"))
