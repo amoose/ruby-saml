@@ -12,12 +12,12 @@ module OneLogin
       DSIG      = "http://www.w3.org/2000/09/xmldsig#"
 
       # Encryption related
-      PLAINTEXT_ASSERTION_PATH = "/samlp:Response/Assertion"
-      ENCRYPTED_RESPONSE_PATH = "(/samlp:Response/EncryptedAssertion/)|(/samlp:Response/saml:EncryptedAssertion/)"
-      ENCRYPTED_RESPONSE_DATA_PATH = "./xenc:EncryptedData"
-      ENCRYPTION_METHOD_PATH = "./xenc:EncryptionMethod"
-      ENCRYPTED_AES_KEY_PATH = "(./KeyInfo/e:EncryptedKey/e:CipherData/e:CipherValue)|(./ds:KeyInfo/xenc:EncryptedKey/xenc:CipherData/xenc:CipherValue)"
-      ENCRYPTED_ASSERTION_PATH = "./xenc:CipherData/xenc:CipherValue"
+      PLAINTEXT_ASSERTION_PATH = "/Response/Assertion"
+      ENCRYPTED_RESPONSE_PATH = "(/Response/EncryptedAssertion/)|(/Response/EncryptedAssertion/)"
+      ENCRYPTED_RESPONSE_DATA_PATH = "./EncryptedData"
+      ENCRYPTION_METHOD_PATH = "./EncryptionMethod"
+      ENCRYPTED_AES_KEY_PATH = "(./KeyInfo/EncryptedKey/CipherData/CipherValue)|(./KeyInfo/EncryptedKey/CipherData/CipherValue)"
+      ENCRYPTED_ASSERTION_PATH = "./CipherData/CipherValue"
       RSA_PKCS1_OAEP_PADDING = 4
       ENCRYTPION_ALGORITHMS = {
           'http://www.w3.org/2001/04/xmlenc#aes128-cbc' => 'AES-128-CBC',
@@ -26,6 +26,7 @@ module OneLogin
 
       # TODO: This should probably be ctor initialized too... WDYT?
       attr_accessor :settings
+      attr_accessor :encrypted
 
       attr_reader :options
       attr_reader :response
@@ -35,6 +36,8 @@ module OneLogin
         raise ArgumentError.new("Response cannot be nil") if response.nil?
         @options  = options
         @response = (response =~ /^</) ? response : Base64.decode64(response)
+        @document = REXML::Document.new(@response)
+        decrypt_assertion_document
         @document = XMLSecurity::SignedDocument.new(@response)
       end
 
@@ -138,10 +141,10 @@ module OneLogin
       def assertion_document
         @assertion_document ||= begin
           if document.elements[ENCRYPTED_RESPONSE_PATH]
-            if sig_element = document.elements['/samlp:Response/ds:Signature']
+            if sig_element = document.elements['/Response/Signature']
               sig_element.remove #Skipping signature verification - Assertion is already signed andit will be verified.
             end
-            document.elements['/samlp:Response/'].add(decrypt_assertion_document)
+            document.elements['/Response/'].add(decrypt_assertion_document)
             document.elements[ENCRYPTED_RESPONSE_PATH].remove
             XMLSecurity::SignedDocument.new(document.to_s)
           else
@@ -150,7 +153,6 @@ module OneLogin
         end
       end
 
-      private
 
       def validation_error(message)
         raise ValidationError.new(message)
@@ -201,7 +203,7 @@ module OneLogin
       def get_fingerprint
         if settings.idp_cert
           cert = OpenSSL::X509::Certificate.new(settings.idp_cert)
-          Digest::SHA1.hexdigest(cert.to_der).upcase.scan(/../).join(":")
+          Digest::SHA256.hexdigest(cert.to_der).upcase.scan(/../).join(":")
         else
           settings.idp_cert_fingerprint
         end
@@ -231,6 +233,8 @@ module OneLogin
       end
 
       def decrypt_assertion_document
+        encrypted_assertion = document.elements[ENCRYPTED_RESPONSE_PATH]
+        return if encrypted_assertion.nil?
         @encrypted = true
         encrypted_assertion = document.elements[ENCRYPTED_RESPONSE_PATH]
         cipher_data = encrypted_assertion.elements[ENCRYPTED_RESPONSE_DATA_PATH]
@@ -242,7 +246,7 @@ module OneLogin
       end
 
       def retrieve_symmetric_key(cipher_data)
-        cert_rsa = OpenSSL::PKey::RSA.new(settings.private_key, settings.private_key_password)
+        cert_rsa = OpenSSL::PKey::RSA.new(options[:private_key], options[:private_key_password])
         encrypted_aes_key_element = cipher_data.elements[ENCRYPTED_AES_KEY_PATH]
         encrypted_aes_key = Base64.decode64(encrypted_aes_key_element.text)
         cert_rsa.private_decrypt(encrypted_aes_key, RSA_PKCS1_OAEP_PADDING)
