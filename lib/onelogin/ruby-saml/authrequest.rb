@@ -48,8 +48,8 @@ module OneLogin
             raise ArgumentError.new("Unknown algorithm #{signing_params[:algorithm]}")
           end
           request_params << "&SigAlg=#{URI.encode_www_form_component(digest_uri)}"
-          request_params << '&Signature='
-          request_params << Base64.encode64(signing_key.sign(digest, request_params))
+          digest_value = Base64.urlsafe_encode64(signing_key.sign(digest, request_params))
+          request_params << "&Signature=#{digest_value}"
         end
 
         settings.idp_sso_target_url + params_prefix + request_params
