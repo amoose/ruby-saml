@@ -9,7 +9,7 @@ module OneLogin
   module RubySaml
   include REXML
     class Authrequest
-      def create(settings, params = {})
+      def create(settings, params = {}, signing_params = {})
         params = {} if params.nil?
 
         request_doc = create_authentication_xml_doc(settings)
@@ -24,13 +24,35 @@ module OneLogin
         base64_request    = Base64.encode64(request)
         encoded_request   = CGI.escape(base64_request)
         params_prefix     = (settings.idp_sso_target_url =~ /\?/) ? '&' : '?'
-        request_params    = "#{params_prefix}SAMLRequest=#{encoded_request}"
+        request_params    = "SAMLRequest=#{encoded_request}"
 
         params.each_pair do |key, value|
           request_params << "&#{key.to_s}=#{CGI.escape(value.to_s)}"
         end
 
-        settings.idp_sso_target_url + request_params
+        if !signing_params[:key].nil?
+          raise "Key must come with algorithm" if signing_params[:algorithm].nil?
+          raise "Cannot have extraneous params if signing" if params_prefix != '?' || !params.empty?
+          signing_key = OpenSSL::PKey::RSA.new(signing_params[:key])
+          case signing_params[:algorithm]
+          when :sha1
+            digest = OpenSSL::Digest::SHA1.new
+            digest_uri = 'http://www.w3.org/2000/09/xmldsig#rsa-sha1'
+          when :sha256
+            digest = OpenSSL::Digest::SHA256.new
+            digest_uri = 'http://www.w3.org/2001/04/xmlenc#sha256'
+          when :sha512
+            digest = OpenSSL::Digest::SHA512.new
+            digest_uri = 'http://www.w3.org/2001/04/xmlenc#sha512'
+          else
+            raise ArgumentError.new("Unknown algorithm #{signing_params[:algorithm]}")
+          end
+          request_params << "&SigAlg=#{URI.encode_www_form_component(digest_uri)}"
+          request_params << '&Signature='
+          request_params << Base64.encode64(signing_key.sign(digest, request_params))
+        end
+
+        settings.idp_sso_target_url + params_prefix + request_params
       end
 
       def create_authentication_xml_doc(settings)
