@@ -60,10 +60,12 @@ module XMLSecurity
         digest_method = Digest::SHA256
       when 40
         digest_method = Digest::SHA1
+      else
+        digest_method = nil
       end
 
       # Check cert matches registered idp cert.
-      fingerprint = digest_method.hexdigest(cert.to_der)
+      fingerprint = digest_method.hexdigest(cert.to_der) unless digest_method.nil?
 
       if fingerprint != normalized_fingerprint
         return soft ? false : (raise OneLogin::RubySaml::ValidationError.new("Fingerprint mismatch"))

@@ -5,8 +5,10 @@ gemspec
 group :test do
   if RUBY_VERSION < "1.9"
     gem "ruby-debug", "~> 0.10.4"
-  else
+  elsif RUBY_VERSION < "2.0"
     gem "debugger",   "~> 1.1"
+  else
+    gem "byebug",   "~> 3.5.1"
   end
   gem "shoulda",    "~> 2.11"
   gem "rake",       "~> 10"
