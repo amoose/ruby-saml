@@ -32,7 +32,9 @@ module OneLogin
 
         if !signing_params[:key].nil?
           raise "Key must come with algorithm" if signing_params[:algorithm].nil?
-          raise "Cannot have extraneous params if signing" if params_prefix != '?' || !params.empty?
+          raise "Cannot have extraneous params if signing" if params_prefix != '?'
+          raise "Only parameter allowed is RelayState" if params.size > 1 && !params.has_key?(:RelayState)
+
           signing_key = OpenSSL::PKey::RSA.new(signing_params[:key])
           case signing_params[:algorithm]
           when :sha1
@@ -46,6 +48,9 @@ module OneLogin
             digest_uri = 'http://www.w3.org/2001/04/xmlenc#sha512'
           else
             raise ArgumentError.new("Unknown algorithm #{signing_params[:algorithm]}")
+          end
+          if params.has_key?(:RelayState)
+            request_params << "&RelayState=#{URI.encode_www_form_component(params[:RelayState])}"
           end
           request_params << "&SigAlg=#{URI.encode_www_form_component(digest_uri)}"
           digest_value = Base64.urlsafe_encode64(signing_key.sign(digest, request_params))
