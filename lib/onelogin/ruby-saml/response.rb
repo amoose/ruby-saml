@@ -16,13 +16,18 @@ module OneLogin
       ENCRYPTED_RESPONSE_PATH = "(/Response/EncryptedAssertion/)|(/Response/EncryptedAssertion/)"
       ENCRYPTED_RESPONSE_DATA_PATH = "./EncryptedData"
       ENCRYPTION_METHOD_PATH = "./EncryptionMethod"
-      ENCRYPTED_AES_KEY_PATH = "(./KeyInfo/EncryptedKey/CipherData/CipherValue)|(./KeyInfo/EncryptedKey/CipherData/CipherValue)"
+      ENCRYPTED_AES_KEY_PATH = "./KeyInfo/EncryptedKey/CipherData/CipherValue"
       ENCRYPTED_ASSERTION_PATH = "./CipherData/CipherValue"
+      ENCRYPTED_KEY_ENCRYPTION_METHOD_PATH = "./KeyInfo/EncryptedKey/EncryptionMethod"
       RSA_PKCS1_OAEP_PADDING = 4
       RSA_PKCS1_PADDING = 1
       ENCRYTPION_ALGORITHMS = {
           'http://www.w3.org/2001/04/xmlenc#aes128-cbc' => 'AES-128-CBC',
           'http://www.w3.org/2001/04/xmlenc#aes256-cbc' => 'AES-256-CBC'
+      }
+      KEY_ENCRYTPION_ALGORITHMS = {
+        'http://www.w3.org/2001/04/xmlenc#rsa-1_5' => RSA_PKCS1_PADDING,
+        'http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p' => RSA_PKCS1_OAEP_PADDING,
       }
 
       # TODO: This should probably be ctor initialized too... WDYT?
@@ -249,8 +254,10 @@ module OneLogin
       def retrieve_symmetric_key(cipher_data)
         cert_rsa = OpenSSL::PKey::RSA.new(options[:private_key], options[:private_key_password])
         encrypted_aes_key_element = cipher_data.elements[ENCRYPTED_AES_KEY_PATH]
+        encryption_algorithm = KEY_ENCRYTPION_ALGORITHMS[
+          cipher_data.elements[ENCRYPTED_KEY_ENCRYPTION_METHOD_PATH].attributes['Algorithm']]
         encrypted_aes_key = Base64.decode64(encrypted_aes_key_element.text)
-        cert_rsa.private_decrypt(encrypted_aes_key, RSA_PKCS1_PADDING)
+        cert_rsa.private_decrypt(encrypted_aes_key, encryption_algorithm)
       end
 
       def retrieve_plaintext(cipher_text, key, alogrithm)
