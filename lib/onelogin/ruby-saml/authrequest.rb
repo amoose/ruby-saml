@@ -42,10 +42,10 @@ module OneLogin
             digest_uri = 'http://www.w3.org/2000/09/xmldsig#rsa-sha1'
           when :sha256
             digest = OpenSSL::Digest::SHA256.new
-            digest_uri = 'http://www.w3.org/2001/04/xmlenc#sha256'
+            digest_uri = 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256'
           when :sha512
             digest = OpenSSL::Digest::SHA512.new
-            digest_uri = 'http://www.w3.org/2001/04/xmlenc#sha512'
+            digest_uri = 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha512'
           else
             raise ArgumentError.new("Unknown algorithm #{signing_params[:algorithm]}")
           end
