@@ -1,15 +1,9 @@
 require "xml_security"
 require "time"
-require "base64"
-require "zlib"
 
 module OneLogin
   module RubySaml
-    class Logoutresponse
-
-      ASSERTION = "urn:oasis:names:tc:SAML:2.0:assertion"
-      PROTOCOL  = "urn:oasis:names:tc:SAML:2.0:protocol"
-
+    class Logoutresponse < SamlMessage
       # For API compability, this is mutable.
       attr_accessor :settings
 
@@ -30,8 +24,8 @@ module OneLogin
         self.settings = settings
 
         @options = options
-        @response = decode_raw_response(response)
-        @document = XMLSecurity::SignedDocument.new(response)
+        @response = decode_raw_saml(response)
+        @document = XMLSecurity::SignedDocument.new(@response)
       end
 
       def validate!
@@ -39,7 +33,7 @@ module OneLogin
       end
 
       def validate(soft = true)
-        return false unless valid_saml?(soft) && valid_state?(soft)
+        return false unless valid_saml?(document, soft) && valid_state?(soft)
 
         valid_in_response_to?(soft) && valid_issuer?(soft) && success?(soft)
       end
@@ -75,39 +69,6 @@ module OneLogin
 
       private
 
-      def decode(encoded)
-        Base64.decode64(encoded)
-      end
-
-      def inflate(deflated)
-        zlib = Zlib::Inflate.new(-Zlib::MAX_WBITS)
-        zlib.inflate(deflated)
-      end
-
-      def decode_raw_response(response)
-        if response =~ /^</
-          return response
-        elsif (decoded  = decode(response)) =~ /^</
-          return decoded
-        elsif (inflated = inflate(decoded)) =~ /^</
-          return inflated
-        end
-
-        raise "Couldn't decode SAMLResponse"
-      end
-
-      def valid_saml?(soft = true)
-        Dir.chdir(File.expand_path(File.join(File.dirname(__FILE__), '..', '..', 'schemas'))) do
-          @schema = Nokogiri::XML::Schema(IO.read('saml20protocol_schema.xsd'))
-          @xml = Nokogiri::XML(self.document.to_s)
-        end
-        if soft
-          @schema.validate(@xml).map{ return false }
-        else
-          @schema.validate(@xml).map{ |error| validation_error("#{error.message}\n\n#{@xml.to_s}") }
-        end
-      end
-
       def valid_state?(soft = true)
         if response.empty?
           return soft ? false : validation_error("Blank response")
@@ -139,14 +100,12 @@ module OneLogin
       end
 
       def valid_issuer?(soft = true)
-        unless URI.parse(issuer) == URI.parse(self.settings.issuer)
+        return true if self.settings.idp_entity_id.nil? or self.issuer.nil?
+
+        unless URI.parse(self.issuer) == URI.parse(self.settings.idp_entity_id)
           return soft ? false : validation_error("Doesn't match the issuer, expected: <#{self.settings.issuer}>, but was: <#{issuer}>")
         end
         true
-      end
-
-      def validation_error(message)
-        raise ValidationError.new(message)
       end
     end
   end

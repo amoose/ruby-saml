@@ -46,7 +46,7 @@ class Test::Unit::TestCase
   end
 
   def ampersands_response
-    @ampersands_resposne ||= File.read(File.join(File.dirname(__FILE__), 'responses', 'response_with_ampersands.xml.base64'))
+    @ampersands_response ||= File.read(File.join(File.dirname(__FILE__), 'responses', 'response_with_ampersands.xml.base64'))
   end
 
   def response_document_6
@@ -54,6 +54,10 @@ class Test::Unit::TestCase
     doc.gsub!(/NotBefore=\"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z\"/, "NotBefore=\"#{(Time.now-300).getutc.strftime("%Y-%m-%dT%XZ")}\"")
     doc.gsub!(/NotOnOrAfter=\"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z\"/, "NotOnOrAfter=\"#{(Time.now+300).getutc.strftime("%Y-%m-%dT%XZ")}\"")
     Base64.encode64(doc)
+  end
+
+  def response_document_7
+    @response_document7 ||= Base64.encode64(File.read(File.join(File.dirname(__FILE__), 'responses', 'response_no_cert_and_encrypted_attrs.xml')))
   end
 
   def wrapped_response_2
@@ -74,6 +78,35 @@ class Test::Unit::TestCase
 
   def idp_metadata
     @idp_metadata ||= File.read(File.join(File.dirname(__FILE__), 'responses', 'idp_descriptor.xml'))
+  end
+
+  def logout_request_document
+    unless @logout_request_document
+      xml = File.read(File.join(File.dirname(__FILE__), 'responses', 'slo_request.xml'))
+      deflated = Zlib::Deflate.deflate(xml, 9)[2..-5]
+      @logout_request_document = Base64.encode64(deflated)
+    end
+    @logout_request_document
+  end
+
+  def ruby_saml_cert
+    @ruby_saml_cert ||= OpenSSL::X509::Certificate.new(ruby_saml_cert_text)
+  end
+
+  def ruby_saml_cert_fingerprint
+    @ruby_saml_cert_fingerprint ||= Digest::SHA1.hexdigest(ruby_saml_cert.to_der).scan(/../).join(":")
+  end
+
+  def ruby_saml_cert_text
+    File.read(File.join(File.dirname(__FILE__), 'certificates', 'ruby-saml.crt'))
+  end
+
+  def ruby_saml_key
+    @ruby_saml_key ||= OpenSSL::PKey::RSA.new(ruby_saml_key_text)
+  end
+
+  def ruby_saml_key_text
+    File.read(File.join(File.dirname(__FILE__), 'certificates', 'ruby-saml.key'))
   end
 
 end

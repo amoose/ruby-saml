@@ -20,11 +20,11 @@ class RubySamlTest < Test::Unit::TestCase
 
     should "adapt namespace" do
       response = OneLogin::RubySaml::Response.new(response_document)
-      assert !response.name_id.nil?
+      assert_not_nil response.name_id
       response = OneLogin::RubySaml::Response.new(response_document_2)
-      assert !response.name_id.nil?
+      assert_not_nil response.name_id
       response = OneLogin::RubySaml::Response.new(response_document_3)
-      assert !response.name_id.nil?
+      assert_not_nil response.name_id
     end
 
     should "default to raw input when a response is not Base64 encoded" do
@@ -40,7 +40,7 @@ class RubySamlTest < Test::Unit::TestCase
         settings = OneLogin::RubySaml::Settings.new
         settings.idp_cert_fingerprint = signature_fingerprint_1
         response.settings = settings
-        assert response.name_id.nil?
+        assert_nil response.name_id
       end
     end
 
@@ -50,6 +50,14 @@ class RubySamlTest < Test::Unit::TestCase
         assert_raise(OneLogin::RubySaml::ValidationError) do
           response.validate!
         end
+      end
+    end
+
+    context "#validate_structure" do
+      should "raise when encountering a condition that prevents the document from being valid" do
+        response = OneLogin::RubySaml::Response.new(response_document_2)
+        response.send(:validate_structure)
+        assert response.errors.include? "Schema validation failed"
       end
     end
 
@@ -219,6 +227,11 @@ class RubySamlTest < Test::Unit::TestCase
         assert_equal "someone@example.com", response.attributes["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"]
       end
 
+      should "not raise errors about nil/empty attributes for EncryptedAttributes" do
+        response = OneLogin::RubySaml::Response.new(response_document_7)
+        assert_equal 'Demo', response.attributes["first_name"]
+      end
+
       should "not raise on responses without attributes" do
         response = OneLogin::RubySaml::Response.new(response_document_4)
         assert_equal OneLogin::RubySaml::Attributes.new, response.attributes
@@ -230,9 +243,24 @@ class RubySamlTest < Test::Unit::TestCase
           assert_equal "demo", response.attributes[:uid]
         end
 
+        should "extract single value as string in compatibility mode off" do
+          response = OneLogin::RubySaml::Response.new(fixture(:response_with_multiple_attribute_values))
+          OneLogin::RubySaml::Attributes.single_value_compatibility = false
+          assert_equal ["demo"], response.attributes[:uid]
+          # classes are not reloaded between tests so restore default
+          OneLogin::RubySaml::Attributes.single_value_compatibility = true
+        end
+
         should "extract first of multiple values as string for b/w compatibility" do
           response = OneLogin::RubySaml::Response.new(fixture(:response_with_multiple_attribute_values))
           assert_equal 'value1', response.attributes[:another_value]
+        end
+
+        should "extract first of multiple values as string for b/w compatibility in compatibility mode off" do
+          response = OneLogin::RubySaml::Response.new(fixture(:response_with_multiple_attribute_values))
+          OneLogin::RubySaml::Attributes.single_value_compatibility = false
+          assert_equal ['value1', 'value2'], response.attributes[:another_value]
+          OneLogin::RubySaml::Attributes.single_value_compatibility = true
         end
 
         should "return array with all attributes when asked in XML order" do
@@ -240,9 +268,23 @@ class RubySamlTest < Test::Unit::TestCase
           assert_equal ['value1', 'value2'], response.attributes.multi(:another_value)
         end
 
+        should "return array with all attributes when asked in XML order in compatibility mode off" do
+          response = OneLogin::RubySaml::Response.new(fixture(:response_with_multiple_attribute_values))
+          OneLogin::RubySaml::Attributes.single_value_compatibility = false
+          assert_equal ['value1', 'value2'], response.attributes.multi(:another_value)
+          OneLogin::RubySaml::Attributes.single_value_compatibility = true
+        end
+
         should "return first of multiple values when multiple Attribute tags in XML" do
           response = OneLogin::RubySaml::Response.new(fixture(:response_with_multiple_attribute_values))
           assert_equal 'role1', response.attributes[:role]
+        end
+
+        should "return first of multiple values when multiple Attribute tags in XML in compatibility mode off" do
+          response = OneLogin::RubySaml::Response.new(fixture(:response_with_multiple_attribute_values))
+          OneLogin::RubySaml::Attributes.single_value_compatibility = false
+          assert_equal ['role1', 'role2', 'role3'], response.attributes[:role]
+          OneLogin::RubySaml::Attributes.single_value_compatibility = true
         end
 
         should "return all of multiple values in reverse order when multiple Attribute tags in XML" do
@@ -250,9 +292,23 @@ class RubySamlTest < Test::Unit::TestCase
           assert_equal ['role1', 'role2', 'role3'], response.attributes.multi(:role)
         end
 
+        should "return all of multiple values in reverse order when multiple Attribute tags in XML in compatibility mode off" do
+          response = OneLogin::RubySaml::Response.new(fixture(:response_with_multiple_attribute_values))
+          OneLogin::RubySaml::Attributes.single_value_compatibility = false
+          assert_equal ['role1', 'role2', 'role3'], response.attributes.multi(:role)
+          OneLogin::RubySaml::Attributes.single_value_compatibility = true
+        end
+
         should "return nil value correctly" do
           response = OneLogin::RubySaml::Response.new(fixture(:response_with_multiple_attribute_values))
           assert_nil response.attributes[:attribute_with_nil_value]
+        end
+
+        should "return nil value correctly when not in compatibility mode off" do
+          response = OneLogin::RubySaml::Response.new(fixture(:response_with_multiple_attribute_values))
+          OneLogin::RubySaml::Attributes.single_value_compatibility = false
+          assert_equal [nil], response.attributes[:attribute_with_nil_value]
+          OneLogin::RubySaml::Attributes.single_value_compatibility = true
         end
 
         should "return multiple values including nil and empty string" do
@@ -260,13 +316,26 @@ class RubySamlTest < Test::Unit::TestCase
           assert_equal ["", "valuePresent", nil, nil], response.attributes.multi(:attribute_with_nils_and_empty_strings)
         end
 
-        should "return multiple values from [] when not in compatibility mode" do
+        should "return multiple values from [] when not in compatibility mode off" do
           response = OneLogin::RubySaml::Response.new(fixture(:response_with_multiple_attribute_values))
           OneLogin::RubySaml::Attributes.single_value_compatibility = false
           assert_equal ["", "valuePresent", nil, nil], response.attributes[:attribute_with_nils_and_empty_strings]
-          # classes are not reloaded between tests so restore default
           OneLogin::RubySaml::Attributes.single_value_compatibility = true
         end
+
+        should "check what happens when trying retrieve attribute that does not exists" do
+          response = OneLogin::RubySaml::Response.new(fixture(:response_with_multiple_attribute_values))
+          assert_equal nil, response.attributes[:attribute_not_exists]
+          assert_equal nil, response.attributes.single(:attribute_not_exists)
+          assert_equal nil, response.attributes.multi(:attribute_not_exists)
+
+          OneLogin::RubySaml::Attributes.single_value_compatibility = false
+          assert_equal nil, response.attributes[:attribute_not_exists]
+          assert_equal nil, response.attributes.single(:attribute_not_exists)
+          assert_equal nil, response.attributes.multi(:attribute_not_exists)          
+          OneLogin::RubySaml::Attributes.single_value_compatibility = true
+        end
+
       end
     end
 
@@ -276,7 +345,7 @@ class RubySamlTest < Test::Unit::TestCase
         assert response.session_expires_at.is_a?(Time)
 
         response = OneLogin::RubySaml::Response.new(response_document_2)
-        assert response.session_expires_at.nil?
+        assert_nil response.session_expires_at
       end
     end
 

@@ -26,11 +26,21 @@ class XmlSecurityTest < Test::Unit::TestCase
       end
     end
 
+    should "not raise an error when softly validating the document and the X509Certificate is missing" do
+      response = Base64.decode64(response_document)
+      response.sub!(/<ds:X509Certificate>.*<\/ds:X509Certificate>/, "")
+      document = XMLSecurity::SignedDocument.new(response)
+      assert_nothing_raised do
+        assert !document.validate_document("a fingerprint", true) # The fingerprint isn't relevant to this test
+      end
+    end
+
     should "should raise Fingerprint mismatch" do
       exception = assert_raise(OneLogin::RubySaml::ValidationError) do
         @document.validate_document("no:fi:ng:er:pr:in:t", false)
       end
       assert_equal("Fingerprint mismatch", exception.message)
+      assert @document.errors.include? "Fingerprint mismatch"
     end
 
     should "should raise Digest mismatch" do
@@ -38,6 +48,7 @@ class XmlSecurityTest < Test::Unit::TestCase
         @document.validate_signature(@base64cert, false)
       end
       assert_equal("Digest mismatch", exception.message)
+      assert @document.errors.include? "Digest mismatch"
     end
 
     should "should raise Key validation error" do
@@ -50,6 +61,7 @@ class XmlSecurityTest < Test::Unit::TestCase
         document.validate_signature(base64cert, false)
       end
       assert_equal("Key validation error", exception.message)
+      assert document.errors.include? "Key validation error"
     end
 
     should "correctly obtain the digest method with alternate namespace declaration" do
@@ -131,6 +143,56 @@ class XmlSecurityTest < Test::Unit::TestCase
         inclusive_namespaces = document.send(:extract_inclusive_namespaces)
 
         assert inclusive_namespaces.empty?
+      end
+    end
+
+    context "XMLSecurity::DSIG" do
+      should "sign a AuthNRequest" do
+        settings = OneLogin::RubySaml::Settings.new({
+          :idp_sso_target_url => "https://idp.example.com/sso",
+          :protocol_binding => "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
+          :issuer => "https://sp.example.com/saml2",
+          :assertion_consumer_service_url => "https://sp.example.com/acs"
+        })
+
+        request = OneLogin::RubySaml::Authrequest.new.create_authentication_xml_doc(settings)
+        request.sign_document(ruby_saml_key, ruby_saml_cert)
+
+        # verify our signature
+        signed_doc = XMLSecurity::SignedDocument.new(request.to_s)
+        signed_doc.validate_document(ruby_saml_cert_fingerprint, false)
+      end
+
+      should "sign a LogoutRequest" do
+        settings = OneLogin::RubySaml::Settings.new({
+          :idp_slo_target_url => "https://idp.example.com/slo",
+          :protocol_binding => "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
+          :issuer => "https://sp.example.com/saml2",
+          :single_logout_service_url => "https://sp.example.com/sls"
+        })
+
+        request = OneLogin::RubySaml::Logoutrequest.new.create_logout_request_xml_doc(settings)
+        request.sign_document(ruby_saml_key, ruby_saml_cert)
+
+        # verify our signature
+        signed_doc = XMLSecurity::SignedDocument.new(request.to_s)
+        signed_doc.validate_document(ruby_saml_cert_fingerprint, false)
+      end
+
+      should "sign a LogoutResponse" do
+        settings = OneLogin::RubySaml::Settings.new({
+          :idp_slo_target_url => "https://idp.example.com/slo",
+          :protocol_binding => "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
+          :issuer => "https://sp.example.com/saml2",
+          :single_logout_service_url => "https://sp.example.com/sls"
+        })
+
+        response = OneLogin::RubySaml::SloLogoutresponse.new.create_logout_response_xml_doc(settings, 'request_id_example', "Custom Logout Message")
+        response.sign_document(ruby_saml_key, ruby_saml_cert)
+
+        # verify our signature
+        signed_doc = XMLSecurity::SignedDocument.new(response.to_s)
+        signed_doc.validate_document(ruby_saml_cert_fingerprint, false)
       end
     end
 
