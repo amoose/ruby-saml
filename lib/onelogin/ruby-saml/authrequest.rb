@@ -21,7 +21,12 @@ module OneLogin
         params.each_pair do |key, value|
           request_params << "&#{key.to_s}=#{CGI.escape(value.to_s)}"
         end
-        @login_url = settings.idp_sso_target_url + request_params
+        begin
+          @login_url = settings.idp_sso_target_url + request_params
+        rescue => e
+          logger.error e.message
+          logger.error e.backtrace.join("\n")
+        end
       end
 
       def create_params(settings, params={})
