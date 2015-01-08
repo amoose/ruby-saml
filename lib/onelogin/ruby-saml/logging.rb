@@ -3,7 +3,7 @@ module OneLogin
   module RubySaml
     class Logging
       def self.debug(message)
-        return if !!ENV["ruby-saml/testing"]
+        return if !!ENV["development"]
 
         if defined? Rails
           Rails.logger.debug message
@@ -13,7 +13,7 @@ module OneLogin
       end
 
       def self.info(message)
-        return if !!ENV["ruby-saml/testing"]
+        return if !!ENV["development"]
 
         if defined? Rails
           Rails.logger.info message

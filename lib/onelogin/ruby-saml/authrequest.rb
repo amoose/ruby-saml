@@ -24,8 +24,8 @@ module OneLogin
         begin
           @login_url = settings.idp_sso_target_url + request_params
         rescue => e
-          logger.error e.message
-          logger.error e.backtrace.join("\n")
+          Logging.debug e.message
+          Logging.debug e.backtrace.join("\n")
         end
       end
 
