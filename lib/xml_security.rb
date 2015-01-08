@@ -179,12 +179,28 @@ module XMLSecurity
       cert_text    = Base64.decode64(base64_cert)
       cert         = OpenSSL::X509::Certificate.new(cert_text)
 
-      # check cert matches registered idp cert
-      fingerprint = Digest::SHA256.hexdigest(cert.to_der)
+      # Normalize fingerprint and guess at digest method based on length.
+      normalized_fingerprint = idp_cert_fingerprint.gsub(/[^a-zA-Z0-9]/,"").downcase
 
-      if fingerprint != idp_cert_fingerprint.gsub(/[^a-zA-Z0-9]/,"").downcase
-        @errors << "Fingerprint mismatch"
-        return soft ? false : (raise OneLogin::RubySaml::ValidationError.new("Fingerprint mismatch"))
+      case normalized_fingerprint.length
+      when 64
+        digest_method = Digest::SHA256
+      when 40
+        digest_method = Digest::SHA1
+      else
+        digest_method = nil
+      end
+
+      # Check cert matches registered idp cert.
+      fingerprint = digest_method.hexdigest(cert.to_der) unless digest_method.nil?
+
+      if fingerprint != normalized_fingerprint
+        if soft
+          return false
+        else
+          @errors << "Fingerprint mismatch"
+          raise OneLogin::RubySaml::ValidationError.new("Fingerprint mismatch")
+        end
       end
 
       validate_signature(base64_cert, soft)

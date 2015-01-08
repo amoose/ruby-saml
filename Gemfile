@@ -10,7 +10,7 @@ group :test do
     gem "debugger-linecache", "~> 1.2.0"
     gem "debugger", "~> 1.6.4"
   else
-    gem "byebug",   "~> 2.1.1"
+    gem "byebug",   "~> 3.5.1"
   end
   gem "shoulda",    "~> 2.11"
   gem "rake",       "~> 10"

@@ -13,8 +13,8 @@ module OneLogin
         @uuid = "_" + UUID.new.generate
       end
 
-      def create(settings, params = {})
-        params = create_params(settings, params)
+      def create(settings, params = {}, signing_params = {})
+        params = create_params(settings, params, signing_params)
         params_prefix = (settings.idp_sso_target_url =~ /\?/) ? '&' : '?'
         saml_request = CGI.escape(params.delete("SAMLRequest"))
         request_params = "#{params_prefix}SAMLRequest=#{saml_request}"
@@ -29,7 +29,7 @@ module OneLogin
         end
       end
 
-      def create_params(settings, params={})
+      def create_params(settings, params = {}, signing_params = {})
         params = {} if params.nil?
 
         request_doc = create_authentication_xml_doc(settings)
@@ -56,6 +56,33 @@ module OneLogin
 
         params.each_pair do |key, value|
           request_params[key] = value.to_s
+        end
+
+        if !signing_params[:key].nil?
+          raise "Key must come with algorithm" if signing_params[:algorithm].nil?
+          raise "Cannot have extraneous params if signing" if params_prefix != '?'
+          raise "Only parameter allowed is RelayState" if params.size > 1 && !params.has_key?(:RelayState)
+
+          signing_key = OpenSSL::PKey::RSA.new(signing_params[:key])
+          case signing_params[:algorithm]
+          when :sha1
+            digest = OpenSSL::Digest::SHA1.new
+            digest_uri = 'http://www.w3.org/2000/09/xmldsig#rsa-sha1'
+          when :sha256
+            digest = OpenSSL::Digest::SHA256.new
+            digest_uri = 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256'
+          when :sha512
+            digest = OpenSSL::Digest::SHA512.new
+            digest_uri = 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha512'
+          else
+            raise ArgumentError.new("Unknown algorithm #{signing_params[:algorithm]}")
+          end
+          if params.has_key?(:RelayState)
+            request_params << "&RelayState=#{URI.encode_www_form_component(params[:RelayState])}"
+          end
+          request_params << "&SigAlg=#{URI.encode_www_form_component(digest_uri)}"
+          digest_value = Base64.urlsafe_encode64(signing_key.sign(digest, request_params))
+          request_params << "&Signature=#{digest_value}"
         end
 
         request_params

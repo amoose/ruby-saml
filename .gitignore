@@ -8,6 +8,8 @@ Gemfile.lock
 lib/Lib.iml
 test/Test.iml
 .rvmrc
+.ruby-version
+.ruby-gemset
 *.gem
 .bundle
 *.patch
