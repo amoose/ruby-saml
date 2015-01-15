@@ -39,7 +39,6 @@ class XmlSecurityTest < Test::Unit::TestCase
       exception = assert_raise(OneLogin::RubySaml::ValidationError) do
         @document.validate_document("no:fi:ng:er:pr:in:t", false)
       end
-      byebug
       assert_equal("Fingerprint mismatch", exception.message)
       assert @document.errors.include? "Fingerprint mismatch"
     end
