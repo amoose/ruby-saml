@@ -200,7 +200,8 @@ class RequestTest < Test::Unit::TestCase
         settings.security[:signature_method] = XMLSecurity::Document::SHA256
         params = OneLogin::RubySaml::Authrequest.new.create_params(settings)
         assert params['Signature']
-        assert params['SigAlg'] == XMLSecurity::Document::SHA1
+        # assert params['SigAlg'] == XMLSecurity::Document::SHA1
+        assert params['SigAlg'] == XMLSecurity::Document::SHA256
       end
     end
 

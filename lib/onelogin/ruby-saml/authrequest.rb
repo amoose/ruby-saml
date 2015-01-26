@@ -43,28 +43,14 @@ module OneLogin
         request = deflate(request) if settings.compress_request
         base64_request = encode(request)
         request_params = {"SAMLRequest" => base64_request}
-
-        if settings.security[:authn_requests_signed] && !settings.security[:embed_sign] && settings.private_key
-          params['SigAlg']    = XMLSecurity::Document::SHA1
-          url_string          = "SAMLRequest=#{CGI.escape(base64_request)}"
-          url_string         += "&RelayState=#{CGI.escape(params['RelayState'])}" if params['RelayState']
-          url_string         += "&SigAlg=#{CGI.escape(params['SigAlg'])}"
-          private_key         = settings.get_sp_key()
-          signature           = private_key.sign(XMLSecurity::BaseDocument.new.algorithm(settings.security[:signature_method]).new, url_string)
-          params['Signature'] = encode(signature)
-        end
-
+        params_prefix     = (settings.idp_sso_target_url =~ /\?/) ? '&' : '?'
         params.each_pair do |key, value|
           request_params[key] = value.to_s
         end
 
-        if !signing_params[:key].nil?
-          raise "Key must come with algorithm" if signing_params[:algorithm].nil?
-          raise "Cannot have extraneous params if signing" if params_prefix != '?'
-          raise "Only parameter allowed is RelayState" if params.size > 1 && !params.has_key?(:RelayState)
+        if settings.security[:authn_requests_signed] && settings.private_key
 
-          signing_key = OpenSSL::PKey::RSA.new(signing_params[:key])
-          case signing_params[:algorithm]
+          case settings.security[:signature_method].split('-').last.to_sym
           when :sha1
             digest = OpenSSL::Digest::SHA1.new
             digest_uri = 'http://www.w3.org/2000/09/xmldsig#rsa-sha1'
@@ -75,14 +61,19 @@ module OneLogin
             digest = OpenSSL::Digest::SHA512.new
             digest_uri = 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha512'
           else
-            raise ArgumentError.new("Unknown algorithm #{signing_params[:algorithm]}")
+            raise ArgumentError.new("Unknown algorithm #{settings.security[:signature_method]}")
           end
+
           if params.has_key?(:RelayState)
-            request_params << "&RelayState=#{URI.encode_www_form_component(params[:RelayState])}"
+            request_params['RelayState'] = URI.encode_www_form_component(params[:RelayState])
           end
-          request_params << "&SigAlg=#{URI.encode_www_form_component(digest_uri)}"
-          digest_value = Base64.urlsafe_encode64(signing_key.sign(digest, request_params))
-          request_params << "&Signature=#{digest_value}"
+
+          request_params['SigAlg']    = digest_uri
+          private_key                 = settings.get_sp_key
+          query_string                = request_params.collect { |k,v| "#{k}=#{CGI.escape(v)}" }.join("&")
+
+          digest_value = Base64.urlsafe_encode64(private_key.sign(digest, query_string))
+          request_params['Signature'] = digest_value
         end
 
         request_params
