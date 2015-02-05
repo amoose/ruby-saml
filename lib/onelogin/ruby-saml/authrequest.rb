@@ -15,12 +15,14 @@ module OneLogin
 
       def create(settings, params = {}, signing_params = {})
         params = create_params(settings, params, signing_params)
+
         params_prefix = (settings.idp_sso_target_url =~ /\?/) ? '&' : '?'
         saml_request = CGI.escape(params.delete("SAMLRequest"))
-        request_params = "#{params_prefix}SAMLRequest=#{saml_request}"
+        request_params = params_prefix
         params.each_pair do |key, value|
-          request_params << "&#{key.to_s}=#{CGI.escape(value.to_s)}"
+          request_params << "#{key.to_s}=#{CGI.escape(value.to_s)}"
         end
+
         begin
           @login_url = settings.idp_sso_target_url + request_params
         rescue => e
@@ -77,6 +79,15 @@ module OneLogin
         end
 
         request_params
+      end
+
+      def create_document(settings)
+        request_doc = create_authentication_xml_doc(settings)
+        request_doc.context[:attribute_quote] = :quote if settings.double_quote_xml_attribute_values
+        request = ""
+        request_doc.write(request)
+        request = deflate(request) if settings.compress_request
+        base64_request = encode(request)
       end
 
       def create_authentication_xml_doc(settings)
