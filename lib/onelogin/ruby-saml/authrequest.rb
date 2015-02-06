@@ -13,7 +13,7 @@ module OneLogin
         @uuid = "_" + UUID.new.generate
       end
 
-      def create(settings, params = {}, signing_params = {})
+      def create_post(settings, params = {}, signing_params = {})
         params = create_params(settings, params, signing_params)
 
         params_prefix = (settings.idp_sso_target_url =~ /\?/) ? '&' : '?'
@@ -31,7 +31,7 @@ module OneLogin
         end
       end
 
-      def create_redirect(settings, params = {}, signing_params = {})
+      def create(settings, params = {}, signing_params = {})
         params = create_params(settings, params, signing_params)
         params_prefix = (settings.idp_sso_target_url =~ /\?/) ? '&' : '?'
         saml_request = CGI.escape(params.delete("SAMLRequest"))
