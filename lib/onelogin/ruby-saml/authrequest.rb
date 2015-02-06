@@ -20,7 +20,7 @@ module OneLogin
         saml_request = CGI.escape(params.delete("SAMLRequest"))
         request_params = params_prefix
         params.each_pair do |key, value|
-          request_params << "#{key.to_s}=#{CGI.escape(value.to_s)}"
+          request_params << "&#{key.to_s}=#{CGI.escape(value.to_s)}"
         end
 
         begin
