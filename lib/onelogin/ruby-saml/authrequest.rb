@@ -31,6 +31,22 @@ module OneLogin
         end
       end
 
+      def redirect(settings, params = {}, signing_params = {})
+        params = create_params(settings, params, signing_params)
+        params_prefix = (settings.idp_sso_target_url =~ /\?/) ? '&' : '?'
+        saml_request = CGI.escape(params.delete("SAMLRequest"))
+        request_params = "#{params_prefix}SAMLRequest=#{saml_request}"
+        params.each_pair do |key, value|
+          request_params << "&#{key.to_s}=#{CGI.escape(value.to_s)}"
+        end
+        begin
+          @login_url = settings.idp_sso_target_url + request_params
+        rescue => e
+          Logging.debug e.message
+          Logging.debug e.backtrace.join("\n")
+        end
+      end
+
       def create_params(settings, params = {}, signing_params = {})
         params = {} if params.nil?
 
