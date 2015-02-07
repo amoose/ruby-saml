@@ -42,6 +42,7 @@ module OneLogin
       # Compability
       attr_accessor :assertion_consumer_logout_service_url
       attr_accessor :assertion_consumer_logout_service_binding
+      attr_accessor :single_signon_service_binding
 
       def single_logout_service_url()
         val = nil
@@ -100,12 +101,13 @@ module OneLogin
       DEFAULTS = {
         :assertion_consumer_service_binding        => "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
         :single_logout_service_binding             => "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect",
+        :single_signon_service_binding             => "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
         :compress_request                          => true,
         :compress_response                         => true,
         :security                                  => {
           :authn_requests_signed    => false,
           :logout_requests_signed   => false,
-          :logout_responses_signed   => false,
+          :logout_responses_signed  => false,
           :embed_sign               => false,
           :digest_method            => XMLSecurity::Document::SHA1,
           :signature_method         => XMLSecurity::Document::SHA1
