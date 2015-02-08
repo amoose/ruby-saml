@@ -101,7 +101,7 @@ module OneLogin
       DEFAULTS = {
         :assertion_consumer_service_binding        => "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
         :single_logout_service_binding             => "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect",
-        :single_signon_service_binding             => "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
+        :single_signon_service_binding             => "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect",
         :compress_request                          => true,
         :compress_response                         => true,
         :security                                  => {
