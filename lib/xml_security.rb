@@ -57,6 +57,8 @@ module XMLSecurity
       if algorithm.is_a?(REXML::Element)
         algorithm = element.attribute("Algorithm").value
         algorithm = algorithm && algorithm =~ /sha(.*?)$/i && $1.to_i
+      else
+        algorithm = element.split('-').last.gsub('sha','').to_i
       end
 
       case algorithm
