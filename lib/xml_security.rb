@@ -34,9 +34,12 @@ require "onelogin/ruby-saml/validation_error"
 module XMLSecurity
 
   class BaseDocument < REXML::Document
+    REXML::Document::entity_expansion_limit = 0
 
-    C14N            = "http://www.w3.org/2001/10/xml-exc-c14n#"
-    DSIG            = "http://www.w3.org/2000/09/xmldsig#"
+    C14N              = "http://www.w3.org/2001/10/xml-exc-c14n#"
+    DSIG              = "http://www.w3.org/2000/09/xmldsig#"
+    NOKOGIRI_OPTIONS  = Nokogiri::XML::ParseOptions::STRICT |
+                        Nokogiri::XML::ParseOptions::NONET
 
     def canon_algorithm(element)
       algorithm = element
@@ -98,7 +101,9 @@ module XMLSecurity
       #<Object />
     #</Signature>
     def sign_document(private_key, certificate, signature_method = SHA1, digest_method = SHA1)
-      noko = Nokogiri.parse(self.to_s)
+      noko = Nokogiri.parse(self.to_s) do |options|
+        options = XMLSecurity::BaseDocument::NOKOGIRI_OPTIONS
+      end
       canon_doc = noko.canonicalize(canon_algorithm(C14N))
 
       signature_element = REXML::Element.new("ds:Signature").add_namespace('ds', DSIG)
@@ -120,7 +125,10 @@ module XMLSecurity
       reference_element.add_element("ds:DigestValue").text = compute_digest(canon_doc, algorithm(digest_method_element))
 
       # add SignatureValue
-      noko_sig_element = Nokogiri.parse(signature_element.to_s)
+      noko_sig_element = Nokogiri.parse(signature_element.to_s) do |options|
+        options = XMLSecurity::BaseDocument::NOKOGIRI_OPTIONS
+      end
+
       noko_signed_info_element = noko_sig_element.at_xpath('//ds:Signature/ds:SignedInfo', 'ds' => DSIG)
       canon_string = noko_signed_info_element.canonicalize(canon_algorithm(C14N))
       signature = compute_signature(private_key, algorithm(signature_method).new, canon_string)
@@ -165,7 +173,10 @@ module XMLSecurity
     def initialize(response, errors = [])
       super(response)
       @errors = errors
-      extract_signed_element_id
+    end
+
+    def signed_element_id
+      @signed_element_id ||= extract_signed_element_id
     end
 
     def validate_document(idp_cert_fingerprint, soft = true)
@@ -215,7 +226,9 @@ module XMLSecurity
       # check for inclusive namespaces
       inclusive_namespaces = extract_inclusive_namespaces
 
-      document = Nokogiri.parse(self.to_s)
+      document = Nokogiri.parse(self.to_s) do |options|
+        options = XMLSecurity::BaseDocument::NOKOGIRI_OPTIONS
+      end
 
       # create a working copy so we don't modify the original
       @working_copy ||= REXML::Document.new(self.to_s).root
@@ -238,7 +251,7 @@ module XMLSecurity
       REXML::XPath.each(@sig_element, "//ds:Reference", {"ds"=>DSIG}) do |ref|
         uri                           = ref.attributes.get_attribute("URI").value
 
-        hashed_element                = document.at_xpath("//*[@ID='#{uri[1..-1]}']")
+        hashed_element                = document.at_xpath("//*[@ID=$uri]", nil, { 'uri' => uri[1..-1] })
         canon_algorithm               = canon_algorithm REXML::XPath.first(ref, '//ds:CanonicalizationMethod', 'ds' => DSIG)
         canon_hashed_element          = hashed_element.canonicalize(canon_algorithm, inclusive_namespaces)
 

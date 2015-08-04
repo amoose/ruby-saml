@@ -18,6 +18,26 @@ class RubySamlTest < Minitest::Test
       response.validate!
     end
 
+    describe "Prevent XEE attack" do
+      before do
+        @response = OneLogin::RubySaml::Response.new(fixture(:attackxee))        
+      end
+
+      it "false when evil attack vector is present, soft = true" do
+        @response.soft = true
+        assert !@response.send(:validate_structure)
+        assert_includes @response.errors, "Invalid SAML Response. Not match the saml-schema-protocol-2.0.xsd"
+      end
+
+      it "raise when evil attack vector is present, soft = false " do
+        @response.soft = false
+
+        assert_raises(OneLogin::RubySaml::ValidationError) do
+          @response.send(:validate_structure)
+        end
+      end
+    end
+
     it "adapt namespace" do
       response = OneLogin::RubySaml::Response.new(response_document)
       refute_nil response.name_id
